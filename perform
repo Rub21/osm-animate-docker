@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+
+$maxdate = 0;
+$mindate = 0x7fffffff;
+
+$minlat = 180;
+$minlon = 180;
+$maxlat = -180;
+$maxlon = -180;
+
+$width = 750;
+
+$file = $ARGV[0];
+die if ($file eq "");
+
+mkdir "$file.out";
+
+@dates = ();
+
+open(IN, "$file.snap");
+while (<IN>) {
+	if (/ 32:(\d+)/) {
+		push @dates, $1;
+	}
+
+	@points = split(/ /);
+	($lat, $lon) = split(/,/, $points[0]);
+
+	if ($lat < $minlat) {
+		$minlat = $lat;
+	}
+	if ($lon < $minlon) {
+		$minlon = $lon;
+	}
+	if ($lat > $maxlat) {
+		$maxlat = $lat;
+	}
+	if ($lon > $maxlon) {
+		$maxlon = $lon;
+	}
+
+	push @lat, $lat;
+	push @lon, $lon;
+}
+
+@lat = sort { $a <=> $b } @lat;
+@lon = sort { $a <=> $b } @lon;
+
+$minlat = $lat[$#lat * .10];
+$maxlat = $lat[$#lat * .90];
+$minlon = $lon[$#lon * .10];
+$maxlon = $lon[$#lon * .90];
+
+print "$minlat,$minlon $maxlat,$maxlon\n";
+
+$lond = $maxlon - $minlon;
+ZOOM:
+for ($z = 0; $z < 32; $z++) {
+	$wid = (1 << $z) * 256 * $lond / 360;
+	print "$z $wid\n";
+
+	if ($wid > $width) {
+		$z--;
+		last ZOOM;
+	}
+}
+
+$wid = (1 << $z) * 256 * $lond / 360;
+$scale = int(256 * $width / $wid);
+$maxlon = $minlon + ($maxlon - $minlon) * ($width + .5) / ($wid * $scale / 256);
+
+# $mindate = $maxdate - 365 * 3.5 * 86400;
+
+$mindate = $maxdate - 5 * 86400;
+
+$n = 0;
+@dates = sort { $a <=> $b } @dates;
+for ($d = 0; $d <= 100; $d++) {
+	$date = $dates[$d * $#dates / 100];
+	print "$date\n";
+	$outfile = sprintf("%s.out/%05d", $file, $n++);
+	system "./datamaps/render -T$scale -A -xl$date -- $file.dm $z $minlat $minlon $maxlat $maxlon | pngquant 256 > $outfile.png";
+}
+
+system "mogrify -format gif $file.out/*.png";
+system "gifsicle --delay 6 -O3 -lforever --colors 8 $file.out/*.gif > $file.gif";
