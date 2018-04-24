@@ -7,7 +7,7 @@ From: [osm-animate](https://github.com/ericfischer/osm-animate)
 
 ```
 $ docker build -t osmani .
-$ docker run -it osmani
+$ docker run -e URL="http://download.geofabrik.de/south-america/peru-latest.osm.bz2" -e NAME="Peru" -e ZOOM="6" -it  osmani /bin/bash
 
  ```
 
